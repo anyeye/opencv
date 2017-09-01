@@ -206,7 +206,7 @@ thresh_8u( const Mat& _src, Mat& _dst, uchar thresh, uchar maxval, int type )
     if( j_scalar < roi.width )
     {
         const int thresh_pivot = thresh + 1;
-        uchar tab[256];
+        uchar tab[256] = {0};
         switch( type )
         {
         case THRESH_BINARY:
@@ -463,7 +463,7 @@ thresh_16s( const Mat& _src, Mat& _dst, short thresh, short maxval, int type )
             }
             break;
         default:
-            return CV_Error( CV_StsBadArg, "" );
+            CV_Error( CV_StsBadArg, "" ); return;
         }
     }
     else
@@ -517,7 +517,7 @@ thresh_16s( const Mat& _src, Mat& _dst, short thresh, short maxval, int type )
             }
             break;
         default:
-            return CV_Error( CV_StsBadArg, "" );
+            CV_Error( CV_StsBadArg, "" ); return;
         }
     }
 }
@@ -698,7 +698,7 @@ thresh_32f( const Mat& _src, Mat& _dst, float thresh, float maxval, int type )
                 }
                 break;
             default:
-                return CV_Error( CV_StsBadArg, "" );
+                CV_Error( CV_StsBadArg, "" ); return;
         }
     }
     else
@@ -752,7 +752,7 @@ thresh_32f( const Mat& _src, Mat& _dst, float thresh, float maxval, int type )
                 }
                 break;
             default:
-                return CV_Error( CV_StsBadArg, "" );
+                CV_Error( CV_StsBadArg, "" ); return;
         }
     }
 }
@@ -893,7 +893,7 @@ thresh_64f(const Mat& _src, Mat& _dst, double thresh, double maxval, int type)
             }
             break;
         default:
-            return CV_Error(CV_StsBadArg, "");
+            CV_Error(CV_StsBadArg, ""); return;
         }
     }
     else
@@ -952,7 +952,7 @@ thresh_64f(const Mat& _src, Mat& _dst, double thresh, double maxval, int type)
             }
             break;
         default:
-            return CV_Error(CV_StsBadArg, "");
+            CV_Error(CV_StsBadArg, ""); return;
         }
     }
 }
@@ -962,19 +962,18 @@ static bool ipp_getThreshVal_Otsu_8u( const unsigned char* _src, int step, Size 
 {
     CV_INSTRUMENT_REGION_IPP()
 
-#if IPP_VERSION_X100 >= 810
-    int ippStatus = -1;
+// Performance degradations
+#if IPP_VERSION_X100 >= 201800
     IppiSize srcSize = { size.width, size.height };
-    CV_SUPPRESS_DEPRECATED_START
-    ippStatus = CV_INSTRUMENT_FUN_IPP(ippiComputeThreshold_Otsu_8u_C1R, _src, step, srcSize, &thresh);
-    CV_SUPPRESS_DEPRECATED_END
 
-    if(ippStatus >= 0)
-        return true;
+    if(CV_INSTRUMENT_FUN_IPP(ippiComputeThreshold_Otsu_8u_C1R, _src, step, srcSize, &thresh) < 0)
+        return false;
+
+    return true;
 #else
     CV_UNUSED(_src); CV_UNUSED(step); CV_UNUSED(size); CV_UNUSED(thresh);
-#endif
     return false;
+#endif
 }
 #endif
 
@@ -992,7 +991,7 @@ getThreshVal_Otsu_8u( const Mat& _src )
 
 #ifdef HAVE_IPP
     unsigned char thresh;
-    CV_IPP_RUN(IPP_VERSION_X100 >= 810, ipp_getThreshVal_Otsu_8u(_src.ptr(), step, size, thresh), thresh);
+    CV_IPP_RUN_FAST(ipp_getThreshVal_Otsu_8u(_src.ptr(), step, size, thresh), thresh);
 #endif
 
     const int N = 256;
@@ -1390,7 +1389,7 @@ double cv::threshold( InputArray _src, OutputArray _dst, double thresh, double m
             return thresh;
         }
 
-       CV_OVX_RUN(true,
+       CV_OVX_RUN(!ovx::skipSmallImages<VX_KERNEL_THRESHOLD>(src.cols, src.rows),
                   openvx_threshold(src, dst, ithresh, imaxval, type), (double)ithresh)
 
         thresh = ithresh;
